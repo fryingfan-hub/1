@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Interactive Casablanca Lily for Alexa</title>
+    <style>
+        /* Modern reset & cinematic ambient styling */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0b0d10;
+            /* Luxurious soft-lit vignette */
+            background-image: 
+                radial-gradient(circle at 50% 45%, rgba(212, 175, 55, 0.12) 0%, transparent 60%),
+                radial-gradient(circle at 50% 50%, #1e242b 0%, #0b0d10 100%);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Times New Roman', Times, serif;
+        }
+
+        /* Container keeping coordinate spaces aligned smoothly across resizes */
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            touch-action: none; /* Disables mobile elastic scrolling */
+        }
+
+        /* Alexa elegant cursive typography overlay */
+        #overlay-ui {
+            position: absolute;
+            bottom: 12vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            pointer-events: none;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: elegantFadeIn 3.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+            animation-delay: 1.2s;
+        }
+
+        .name-title {
+            font-family: 'Great Vibes', 'Brush Script MT', 'Georgia', cursive;
+            font-size: calc(2.2rem + 2.5vw);
+            font-weight: 300;
+            color: #ffffff;
+            letter-spacing: 2px;
+            text-shadow: 
+                0 0 10px rgba(255, 255, 255, 0.6),
+                0 0 20px rgba(212, 175, 55, 0.3),
+                0 0 35px rgba(212, 175, 55, 0.1);
+            animation: softGlowPulse 5s ease-in-out infinite alternate;
+        }
+
+        /* Subtle luxury detail below the name */
+        .sub-text {
+            font-size: calc(0.6rem + 0.4vw);
+            text-transform: uppercase;
+            letter-spacing: 0.5em;
+            color: rgba(212, 175, 55, 0.6);
+            margin-top: 8px;
+            text-shadow: 0 0 8px rgba(212, 175, 55, 0.2);
+        }
+
+        @keyframes elegantFadeIn {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes softGlowPulse {
+            0% {
+                text-shadow: 
+                    0 0 10px rgba(255, 255, 255, 0.5),
+                    0 0 20px rgba(212, 175, 55, 0.2);
+                opacity: 0.95;
+            }
+            100% {
+                text-shadow: 
+                    0 0 15px rgba(255, 255, 255, 0.85),
+                    0 0 30px rgba(212, 175, 55, 0.55),
+                    0 0 40px rgba(212, 175, 55, 0.2);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvas-container">
+        <canvas id="lilyCanvas"></canvas>
+    </div>
+
+    <div id="overlay-ui">
+        <span class="name-title">Lex</span>
+        <span class="sub-text">Casablanca Lily</span>
+    </div>
+
+    <script>
+        /**
+         * Interactive Casablanca Lily 
+         * Built with performance optimizations for mobile rendering via targeted layers,
+         * custom parametric spring physics, and isolated vector canvas drawing.
+         */
+
+        const canvas = document.getElementById('lilyCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // State & Layout Management
+        let width, height, cx, cy, baseScale;
+        let time = 0;
+        const petals = [];
+        const stamens = [];
+        const particles = [];
+        
+        // Dynamic interaction data structures
+        const pointer = { x: 0, y: 0, targetX: 0, targetY: 0, strength: 0 };
+        let globalBloom = { current: 0, target: 1, speed: 0.006 };
+        let isTouched = false;
+
+        // Color and Design Palette Parameters (White, Cream, Pale Gold, Soft Green)
+        const PALETTE = {
+            petalPure: '#ffffff',
+            petalCream: 'rgba(247, 245, 233, 1)',
+            petalShadow: 'rgba(214, 211, 192, 0.45)',
+            petalDeepShadow: 'rgba(186, 183, 160, 0.25)',
+            stamenFilament: 'rgba(235, 226, 188, 0.85)',
+            antherGold: '#d4af37',
+            antherShadow: '#917216',
+            stemColor: 'rgba(74, 94, 68, 1)',
+            stemShadow: 'rgba(52, 69, 47, 1)'
+        };
+
+        // Screen Adaptation Metrics
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            cx = width / 2;
+            cy = height * 0.45; // Placed inside optimal visual center above text layout
+
+            // Responsive baseline scaling factor based on display matrix
+            baseScale = Math.min(width, height) * 0.32;
+            if (width < 500) baseScale = Math.min(width, height) * 0.42; // Mobile viewport enhancement
+
+            // Preset values for interaction target positions safely
+            if (!isTouched) {
+                pointer.x = pointer.targetX = cx;
+                pointer.y = pointer.targetY = cy;
+            }
+
+            initStructures();
+        }
+
+        // Particle Class (Floating Pollen)
+        class PollenParticle {
+            constructor() {
+                this.reset(true);
+            }
+
+            reset(initAll = false) {
+                this.x = Math.random() * width;
+                this.y = initAll ? Math.random() * height : height + 20;
+                this.size = Math.random() * 1.8 + 0.6;
+                this.speedY = -(Math.random() * 0.4 + 0.2);
+                this.speedX = (Math.random() - 0.5) * 0.3;
+                this.wobbleSpeed = Math.random() * 0.02 + 0.01;
+                this.wobbleRadius = Math.random() * 1.5;
+                this.wobbleValue = Math.random() * Math.PI;
+                this.alpha = Math.random() * 0.4 + 0.2;
+                this.color = Math.random() > 0.4 ? PALETTE.antherGold : '#ffffff';
+            }
+
+            update() {
+                this.y += this.speedY;
+                this.wobbleValue += this.wobbleSpeed;
+                this.x += this.speedX + Math.sin(this.wobbleValue) * (this.wobbleRadius * 0.05);
+
+                // Reset cycle conditions if exiting top or sides
+                if (this.y < -10 || this.x < -10 || this.x > width + 10) {
+                    this.reset(false);
+                }
+            }
+
+            draw() {
+                ctx.save();
+                ctx.globalAlpha = this.alpha;
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.shadowColor = this.color;
+                ctx.shadowBlur = 4;
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // Generate procedural architectural components of the Lily
+        function initStructures() {
+            petals.length = 0;
+            stamens.length = 0;
+
+            // Casablanca contains 6 distinct large petals. We split into 2 layers of 3.
+            for (let i = 0; i < 6; i++) {
+                const baseAngle = (i / 6) * Math.PI * 2;
+                petals.push({
+                    index: i,
+                    angle: baseAngle,
+                    length: baseScale * (i % 2 === 0 ? 1.05 : 0.95), // Alternating inner/outer layers
+                    width: baseScale * (i % 2 === 0 ? 0.44 : 0.38),
+                    springVal: 0,
+                    springTarget: 0,
+                    springVel: 0,
+                    waveOffset: Math.random() * Math.PI,
+                    tilt: i % 2 === 0 ? 0.15 : 0.05
+                });
+            }
+
+            // 6 delicate elongated central stamens
+            for (let i = 0; i < 6; i++) {
+                const baseAngle = ((i + 0.5) / 6) * Math.PI * 2;
+                stamens.push({
+                    angle: baseAngle,
+                    length: baseScale * 0.65,
+                    spread: 0.25 + (Math.random() * 0.05),
+                    antherRotation: (Math.random() - 0.5) * 0.5
+                });
+            }
+
+            // Build structural particle array safely once
+            if (particles.length === 0) {
+                // Lower counts on performance sensitive mobile screens
+                const count = window.innerWidth < 500 ? 30 : 65;
+                for (let i = 0; i < count; i++) {
+                    particles.push(new PollenParticle());
+                }
+            }
+        }
+
+        // Draw structural stem curves
+        function drawStem(swayX, swayY) {
+            ctx.save();
+            ctx.beginPath();
+            
+            // Stem anchors from screen bottom up into responsive floral base coordinates
+            const startX = cx;
+            const startY = height;
+            const endX = cx + swayX * 0.4;
+            const endY = cy + swayY * 0.4;
+
+            ctx.moveTo(startX, startY);
+            ctx.bezierCurveTo(
+                cx - (swayX * 0.1), height * 0.75,
+                endX - (swayX * 0.15), endY + (baseScale * 0.5),
+                endX, endY
+            );
+
+            const gradient = ctx.createLinearGradient(startX, startY, endX, endY);
+            gradient.addColorStop(0, PALETTE.stemShadow);
+            gradient.addColorStop(1, PALETTE.stemColor);
+
+            ctx.lineWidth = Math.max(5, baseScale * 0.045);
+            ctx.strokeStyle = gradient;
+            ctx.lineCap = 'round';
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = 'rgba(0,0,0,0.4)';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Complex procedural rendering technique for elegant Casablanca petal profiles
+        function drawPetal(petal, swayX, swayY, bFactor) {
+            ctx.save();
+            
+            // Translate origin to central lily core node matrix
+            ctx.translate(cx + swayX * 0.6, cy + swayY * 0.6);
+            
+            // Apply angular orientation along petal rotational axis
+            ctx.rotate(petal.angle);
+
+            // Integrate interactive hover spring adjustments
+            const currentSpring = petal.springVal;
+            
+            // Core vectors defining the characteristic recurve/bloom curves
+            const len = petal.length * (0.3 + bFactor * 0.7);
+            const w = petal.width * bFactor;
+
+            // Dynamic curvature modeling based on bloom completion ratios
+            const curlOutFactor = Math.sin(bFactor * Math.PI * 0.5);
+            const cp1x = w * 0.85;
+            const cp1y = len * 0.35;
+            const cp2x = w * 0.4 + (currentSpring * 12);
+            const cp2y = len * 0.85;
+            
+            // The recurved tip coordinates tracking back outwards slightly
+            const tipX = (Math.sin(time + petal.waveOffset) * 4) * (1 - bFactor);
+            const tipY = len + (petal.tilt * len * (1 - curlOutFactor));
+
+            // Generate petal path geometries
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            
+            // Left profile curve execution
+            ctx.bezierCurveTo(-cp1x, cp1y, -cp2x, cp2y, tipX, tipY);
+            // Right profile curve execution
+            ctx.bezierCurveTo(cp2x, cp2y, cp1x, cp1y, 0, 0);
+            ctx.closePath();
+
+            // Create luxurious deep shading gradient profiles
+            const gradient = ctx.createRadialGradient(0, len * 0.2, 5, 0, len * 0.5, len);
+            gradient.addColorStop(0, PALETTE.petalDeepShadow);
+            gradient.addColorStop(0.15, PALETTE.petalShadow);
+            gradient.addColorStop(0.45, PALETTE.petalCream);
+            gradient.addColorStop(1, PALETTE.petalPure);
+
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            // Refined edge stroke mapping overlay for structural definition
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 0.75;
+            ctx.stroke();
+
+            // Subtle elegant central tracking vein line architecture
+            ctx.beginPath();
+            ctx.moveTo(0, 5);
+            ctx.quadraticCurveTo(tipX * 0.5, len * 0.5, tipX, len * 0.9);
+            ctx.strokeStyle = 'rgba(214, 211, 192, 0.35)';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // Draw golden central stamens & filaments
+        function drawStamen(stamen, swayX, swayY, bFactor) {
+            if (bFactor < 0.2) return; // Keep hidden inside deep early bloom phases
+            
+            ctx.save();
+            ctx.translate(cx + swayX * 0.65, cy + swayY * 0.65);
+            ctx.rotate(stamen.angle);
+
+            // Filament extension vectors mapping out gracefully
+            const sFactor = bFactor * globalBloom.current;
+            const len = stamen.length * (0.4 + sFactor * 0.6);
+            const spreadX = (stamen.spread * len * 0.45) * sFactor;
+            
+            // Micro adjustments based on time metrics for realistic independent motion
+            const microSwayX = Math.sin(time + stamen.angle) * 2;
+
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(spreadX * 0.3, len * 0.4, spreadX + microSwayX, len);
+            
+            ctx.strokeStyle = PALETTE.stamenFilament;
+            ctx.lineWidth = Math.max(1.2, baseScale * 0.009);
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            // Draw golden distinct T-shaped anthers atop the filaments
+            ctx.save();
+            ctx.translate(spreadX + microSwayX, len);
+            ctx.rotate(stamen.antherRotation + (swayX * 0.03));
+
+            const aW = Math.max(8, baseScale * 0.065) * sFactor;
+            const aH = Math.max(3, baseScale * 0.022) * sFactor;
+
+            // Shadow layer underneath gold anther units
+            ctx.fillStyle = PALETTE.antherShadow;
+            ctx.fillRect(-aW / 2, -aH / 2 + 1, aW, aH);
+
+            // Primary glittering golden anther surface textures
+            const goldGrad = ctx.createLinearGradient(-aW/2, 0, aW/2, 0);
+            goldGrad.addColorStop(0, '#b8860b');
+            goldGrad.addColorStop(0.5, PALETTE.antherGold);
+            goldGrad.addColorStop(1, '#f1c40f');
+
+            ctx.fillStyle = goldGrad;
+            ctx.fillRect(-aW / 2, -aH / 2, aW, aH);
+
+            ctx.restore();
+            ctx.restore();
+        }
+
+        // Core animation driver running under structural frame requests
+        function animate() {
+            requestAnimationFrame(animate);
+
+            time += 0.008; // Base temporal increments
+
+            // Clean background canvas matrix transitions
+            ctx.clearRect(0, 0, width, height);
+
+            // Execute particle simulation calculations across background coordinates
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            // Smooth interpolation engine for interactive physics lag tracking
+            pointer.x += (pointer.targetX - pointer.x) * 0.06;
+            pointer.y += (pointer.targetY - pointer.y) * 0.06;
+
+            // Convert raw position metrics into dynamic spatial delta offsets
+            const swayOffsetX = (pointer.x - cx) * 0.25;
+            const swayOffsetY = (pointer.y - cy) * 0.25;
+
+            // Gentle secondary environmental continuous wind modeling vectors
+            const naturalWindX = Math.sin(time * 0.8) * (baseScale * 0.05);
+            const naturalWindY = Math.cos(time * 1.1) * (baseScale * 0.02);
+
+            const totalSwayX = swayOffsetX + naturalWindX;
+            const totalSwayY = swayOffsetY + naturalWindY;
+
+            // Progress processing values for linear loading growth states safely
+            if (globalBloom.current < globalBloom.target) {
+                globalBloom.current += globalBloom.speed;
+                if (globalBloom.current > globalBloom.target) globalBloom.current = globalBloom.target;
+            }
+
+            // Draw flower infrastructure mapping sequences safely
+            drawStem(totalSwayX, totalSwayY);
+
+            // Process & draw bottom/outer layer petals (0, 2, 4)
+            petals.forEach(p => {
+                if (p.index % 2 === 0) {
+                    processPetalSpring(p);
+                    drawPetal(p, totalSwayX, totalSwayY, globalBloom.current);
+                }
+            });
+
+            // Process & draw golden stamens
+            stamens.forEach(s => {
+                drawStamen(s, totalSwayX, totalSwayY, globalBloom.current);
+            });
+
+            // Process & draw top/inner layer petals (1, 3, 5)
+            petals.forEach(p => {
+                if (p.index % 2 !== 0) {
+                    processPetalSpring(p);
+                    drawPetal(p, totalSwayX, totalSwayY, globalBloom.current);
+                }
+            });
+
+            // Add center pistil fusion node to perfectly blend central intersections
+            ctx.save();
+            ctx.translate(cx + totalSwayX * 0.62, cy + totalSwayY * 0.62);
+            const pistilGrad = ctx.createRadialGradient(0,0,1, 0,0, baseScale * 0.06);
+            pistilGrad.addColorStop(0, '#cbd4c5');
+            pistilGrad.addColorStop(0.5, '#a4b59d');
+            pistilGrad.addColorStop(1, 'rgba(74, 94, 68, 0)');
+            ctx.beginPath();
+            ctx.arc(0, 0, baseScale * 0.06, 0, Math.PI * 2);
+            ctx.fillStyle = pistilGrad;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        // Custom spring physics calculations for individual petal flare variations
+        function processPetalSpring(petal) {
+            const force = (petal.springTarget - petal.springVal) * 0.05; // Stiffness tracking
+            petal.springVel += force;
+            petal.springVel *= 0.82; // Damping control factor
+            petal.springVal += petal.springVel;
+        }
+
+        // Unified tracker translation module converting input metrics gracefully
+        function trackInteraction(clientX, clientY) {
+            isTouched = true;
+            pointer.targetX = clientX;
+            pointer.targetY = clientY;
+
+            // Map distances from flower core coordinates to test hover states
+            const dX = clientX - cx;
+            const dY = clientY - cy;
+            const distance = Math.sqrt(dX * dX + dY * dY);
+
+            // If user sweeps directly into floral core region, trigger petal spring flare targets
+            if (distance < baseScale * 1.2) {
+                petals.forEach(p => {
+                    p.springTarget = (1 - (distance / (baseScale * 1.2))) * 1.8;
+                });
+            } else {
+                clearPetalSprings();
+            }
+        }
+
+        function clearPetalSprings() {
+            petals.forEach(p => p.springTarget = 0);
+        }
+
+        // Native Input Event Listeners
+        window.addEventListener('mousemove', (e) => {
+            trackInteraction(e.clientX, e.clientY);
+        });
+
+        window.addEventListener('mouseleave', () => {
+            pointer.targetX = cx;
+            pointer.targetY = cy;
+            clearPetalSprings();
+        });
+
+        // Touch operational handlers safely wrapping mobile behavior specs
+        window.addEventListener('touchstart', (e) => {
+            if (e.touches.length > 0) {
+                trackInteraction(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (e.touches.length > 0) {
+                trackInteraction(e.touches[0].clientX, e.touches[0].clientY);
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchend', () => {
+            pointer.targetX = cx;
+            pointer.targetY = cy;
+            clearPetalSprings();
+        });
+
+        // Handle structural reconfiguration on orientation/resize alterations safely
+        window.addEventListener('resize', resize);
+
+        // Core initialization triggers
+        resize();
+        animate();
+    </script>
+</body>
+</html>
