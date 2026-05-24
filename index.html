@@ -80,22 +80,23 @@
         }
 
         .sub-text {
-            font-size: calc(0.6rem + 0.25vw);
+            font-size: calc(0.65rem + 0.25vw);
             text-transform: uppercase;
-            letter-spacing: 0.35em;
-            color: #94a3b8;
+            letter-spacing: 0.3em;
+            color: #f1f5f9; /* Upgraded to a bright off-white tint */
             font-weight: 600;
-            margin-top: 12px;
+            margin-top: 14px;
             line-height: 1.6;
-            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.9);
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.95), 0 1px 3px rgba(0, 0, 0, 0.9); /* Strong dark outline backplate */
         }
 
         .quote-author {
-            font-size: calc(0.45rem + 0.2vw);
-            letter-spacing: 0.5em;
-            color: #64748b;
-            margin-top: 8px;
-            font-weight: 400;
+            font-size: calc(0.5rem + 0.2vw);
+            letter-spacing: 0.4em;
+            color: #cbd5e1; /* Made noticeably brighter than the background gray */
+            margin-top: 10px;
+            font-weight: 600; /* Adjusted for crisper letter definition */
+            text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
         }
 
         @keyframes elegantFadeIn {
@@ -330,7 +331,7 @@
                         r: Math.random() * 1.2 + 0.5
                     });
                 }
-                petets = petals.push({
+                petals.push({
                     index: i,
                     angle: baseAngle,
                     length: localScale * (i % 2 === 0 ? 1.05 : 0.95), 
